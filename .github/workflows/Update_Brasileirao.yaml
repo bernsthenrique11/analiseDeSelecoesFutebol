@@ -1,0 +1,64 @@
+name: Update Brasileirao
+
+# Controls when the action will run. Triggers the workflow on push or pull request
+# events but only for the master branch
+on:
+  schedule:
+  - cron: "59 23 * 5-12 3-4,6,1"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Update Brasileirao
+    runs-on: ubuntu-18.04
+
+    env:
+      RENV_PATHS_ROOT: ~/.local/share/renv
+      RSPM: ${{ matrix.config.rspm }}
+      R_REMOTES_NO_ERRORS_FROM_WARNINGS: true
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: r-lib/actions/setup-r@v1
+        with:
+          r-version: ${{ matrix.config.r }}
+          http-user-agent: ${{ matrix.config.http-user-agent }}
+
+      - uses: r-lib/actions/setup-pandoc@v1
+
+      - name: Instalando libs de sistema
+        run: |
+          sudo apt update
+          sudo apt install libudunits2-dev libgdal-dev
+          sudo apt install libprotobuf-dev protobuf-compiler
+          sudo apt install libjq-dev
+          sudo add-apt-repository ppa:cran/libgit2
+          sudo apt-get install libgit2-dev
+      
+      - name: Cache R packages
+        id: cache
+        uses: actions/cache@v2
+        with:
+          path: ${{ env.R_LIBS_USER }}
+          key: ${{ runner.os }}-shinydoc
+          restore-keys: |
+            ${{ runner.os }}-
+            
+      - name: Install and activate renv
+        run: |
+          install.packages("renv")
+          renv::activate()
+        shell: Rscript {0}
+            
+      - name: Scrape and update
+        run: |
+          Rscript Docs/Brasileirao_Matches_Update.R
+          
+      - name: Commit
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "GitHub Actions"
+          git add . || echo "No changes to commit"
+          git commit -m 'updating matches' || echo "No changes to commit"
+          git push origin || echo "No changes to commit"
